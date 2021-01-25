@@ -18,7 +18,7 @@ import (
 )
 
 func newEmitter(err error, done func(err error)) emitter {
-	return func(topic string, key string, value []byte) *Promise {
+	return func(topic string, key string, value []byte, headers map[string][]byte) *Promise {
 		p := NewPromise()
 		if done != nil {
 			p.Then(done)
@@ -28,7 +28,7 @@ func newEmitter(err error, done func(err error)) emitter {
 }
 
 func newEmitterW(wg *sync.WaitGroup, err error, done func(err error)) emitter {
-	return func(topic string, key string, value []byte) *Promise {
+	return func(topic string, key string, value []byte, headers map[string][]byte) *Promise {
 		wg.Add(1)
 		p := NewPromise()
 		if done != nil {
@@ -59,7 +59,7 @@ func TestContext_Emit(t *testing.T) {
 	})
 
 	ctx.start()
-	ctx.emit("emit-topic", "key", []byte("value"))
+	ctx.emit("emit-topic", "key", []byte("value"), map[string][]byte{"Header": []byte("value")})
 	ctx.finish(nil)
 
 	// we can now for all callbacks -- it should also guarantee a memory fence
@@ -164,7 +164,7 @@ func TestContext_EmitError(t *testing.T) {
 	})
 
 	ctx.start()
-	ctx.emit("emit-topic", "key", []byte("value"))
+	ctx.emit("emit-topic", "key", []byte("value"), map[string][]byte{"Header": []byte("value")})
 	ctx.finish(nil)
 
 	// we can now for all callbacks -- it should also guarantee a memory fence
@@ -250,7 +250,7 @@ func TestContext_Delete(t *testing.T) {
 	ctx.emitter = newEmitter(nil, nil)
 
 	ctx.start()
-	err := ctx.deleteKey(key)
+	err := ctx.deleteKey(key, map[string][]byte{"Header": []byte("value")})
 	test.AssertNil(t, err)
 	ctx.finish(nil)
 
@@ -280,7 +280,7 @@ func TestContext_DeleteStateless(t *testing.T) {
 	}
 	ctx.emitter = newEmitter(nil, nil)
 
-	err := ctx.deleteKey(key)
+	err := ctx.deleteKey(key, map[string][]byte{"Header": []byte("value")})
 	test.AssertTrue(t, strings.Contains(err.Error(), "Cannot access state in stateless processor"))
 }
 
@@ -313,7 +313,7 @@ func TestContext_DeleteStorageError(t *testing.T) {
 
 	ctx.emitter = newEmitter(nil, nil)
 
-	err := ctx.deleteKey(key)
+	err := ctx.deleteKey(key, map[string][]byte{"Header": []byte("value")})
 	test.AssertTrue(t, strings.Contains(err.Error(), "error deleting key (key) from storage: storage error"))
 }
 
@@ -351,7 +351,7 @@ func TestContext_Set(t *testing.T) {
 	ctx.emitter = newEmitter(nil, nil)
 
 	ctx.start()
-	err := ctx.setValueForKey(key, value)
+	err := ctx.setValueForKey(key, value, map[string][]byte{"Header": []byte("value")})
 	test.AssertNil(t, err)
 	ctx.finish(nil)
 
@@ -363,6 +363,89 @@ func TestContext_Set(t *testing.T) {
 		stores int
 	}{1, 1, 1})
 	test.AssertEqual(t, ack, 1)
+}
+
+func TestContext_GetEmitWithHeaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		group  Group = "some-group"
+		topic        = "topic"
+		key          = "key"
+		value        = "value"
+		headers      = map[string][]byte{"Header": []byte("value")}
+		offset       = int64(123)
+		wg           = new(sync.WaitGroup)
+	)
+
+	graph := DefineGroup(group, Output(Stream(topic), new(codec.String)))
+	ctx := &cbContext{
+		wg:               wg,
+		graph:            graph,
+		trackOutputStats: func(ctx context.Context, topic string, size int) {},
+		msg:              &sarama.ConsumerMessage{Key: []byte(key), Offset: offset},
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
+			wg.Add(1)
+			test.AssertEqual(t, tp, topic)
+			test.AssertEqual(t, string(k), key)
+			test.AssertEqual(t, string(v), value)
+			test.AssertEqual(t, h, headers)
+			return NewPromise().finish(nil, nil)
+		},
+		ctx: context.Background(),
+	}
+
+	ctx.EmitWithHeaders(Stream(topic), key, value, headers)
+
+}
+
+func TestContext_DeleteWithHeaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		group  Group = "some-group"
+		key          = "key"
+		headers      = map[string][]byte{"Header": []byte("value")}
+		offset       = int64(123)
+		wg           = new(sync.WaitGroup)
+		st           = NewMockStorage(ctrl)
+		pt           = &PartitionTable{
+			st: &storageProxy{
+				Storage: st,
+			},
+			state:       newPartitionTableState().SetState(State(PartitionRunning)),
+			stats:       newTableStats(),
+			updateStats: make(chan func(), 10),
+		}
+	)
+
+	st.EXPECT().Delete(key).Return(nil)
+	st.EXPECT().Get(key).Return(nil, nil)
+
+	graph := DefineGroup(group, Persist(new(codec.String)))
+	ctx := &cbContext{
+		table:            pt,
+		wg:               wg,
+		graph:            graph,
+		trackOutputStats: func(ctx context.Context, topic string, size int) {},
+		msg:              &sarama.ConsumerMessage{Key: []byte(key), Offset: offset},
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
+			wg.Add(1)
+			test.AssertEqual(t, tp, graph.GroupTable().Topic())
+			test.AssertEqual(t, string(k), key)
+			test.AssertTrue(t, v == nil)
+			test.AssertEqual(t, h, headers)
+			return NewPromise().finish(nil, nil)
+		},
+		ctx: context.Background(),
+	}
+
+	ctx.DeleteWithHeaders(headers)
+
+	val := ctx.Value()
+	test.AssertTrue(t, val == nil)
 }
 
 func TestContext_GetSetStateful(t *testing.T) {
@@ -397,7 +480,7 @@ func TestContext_GetSetStateful(t *testing.T) {
 		graph:            graph,
 		trackOutputStats: func(ctx context.Context, topic string, size int) {},
 		msg:              &sarama.ConsumerMessage{Key: []byte(key), Offset: offset},
-		emitter: func(tp string, k string, v []byte) *Promise {
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
 			wg.Add(1)
 			test.AssertEqual(t, tp, graph.GroupTable().Topic())
 			test.AssertEqual(t, string(k), key)
@@ -411,6 +494,59 @@ func TestContext_GetSetStateful(t *testing.T) {
 	test.AssertTrue(t, val == nil)
 
 	ctx.SetValue(value)
+
+	val = ctx.Value()
+	test.AssertEqual(t, val, value)
+}
+
+func TestContext_GetSetStatefulHeaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		group  Group = "some-group"
+		key          = "key"
+		value        = "value"
+		headers      = map[string][]byte{"Header": []byte("value")}
+		offset       = int64(123)
+		wg           = new(sync.WaitGroup)
+		st           = NewMockStorage(ctrl)
+		pt           = &PartitionTable{
+			st: &storageProxy{
+				Storage: st,
+			},
+			state:       newPartitionTableState().SetState(State(PartitionRunning)),
+			stats:       newTableStats(),
+			updateStats: make(chan func(), 10),
+		}
+	)
+
+	st.EXPECT().Get(key).Return(nil, nil)
+	st.EXPECT().Set(key, []byte(value)).Return(nil)
+	st.EXPECT().Get(key).Return([]byte(value), nil)
+
+	graph := DefineGroup(group, Persist(new(codec.String)))
+	ctx := &cbContext{
+		table:            pt,
+		wg:               wg,
+		graph:            graph,
+		trackOutputStats: func(ctx context.Context, topic string, size int) {},
+		msg:              &sarama.ConsumerMessage{Key: []byte(key), Offset: offset},
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
+			wg.Add(1)
+			test.AssertEqual(t, tp, graph.GroupTable().Topic())
+			test.AssertEqual(t, string(k), key)
+			test.AssertEqual(t, string(v), value)
+			test.AssertEqual(t, h, headers)
+			return NewPromise().finish(nil, nil)
+		},
+		ctx: context.Background(),
+	}
+
+	val := ctx.Value()
+	test.AssertTrue(t, val == nil)
+
+	ctx.SetValueWithHeaders(value, headers)
 
 	val = ctx.Value()
 	test.AssertEqual(t, val, value)
@@ -449,17 +585,17 @@ func TestContext_SetErrors(t *testing.T) {
 		asyncFailer:      failer,
 	}
 
-	err := ctx.setValueForKey(key, nil)
+	err := ctx.setValueForKey(key, nil, map[string][]byte{"Header": []byte("value")})
 	test.AssertNotNil(t, err)
 	test.AssertTrue(t, strings.Contains(err.Error(), "cannot set nil"))
 
-	err = ctx.setValueForKey(key, 123) // cannot encode 123 as string
+	err = ctx.setValueForKey(key, 123, map[string][]byte{"Header": []byte("value")}) // cannot encode 123 as string
 	test.AssertNotNil(t, err)
 	test.AssertTrue(t, strings.Contains(err.Error(), "error encoding"))
 
 	st.EXPECT().Set(key, []byte(value)).Return(errors.New("some-error"))
 
-	err = ctx.setValueForKey(key, value)
+	err = ctx.setValueForKey(key, value, map[string][]byte{"Header": []byte("value")})
 	test.AssertNotNil(t, err)
 	test.AssertTrue(t, strings.Contains(err.Error(), "some-error"))
 
@@ -502,7 +638,7 @@ func TestContext_Loopback(t *testing.T) {
 		graph:            graph,
 		msg:              &sarama.ConsumerMessage{},
 		trackOutputStats: func(ctx context.Context, topic string, size int) {},
-		emitter: func(tp string, k string, v []byte) *Promise {
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
 			cnt++
 			test.AssertEqual(t, tp, graph.LoopStream().Topic())
 			test.AssertEqual(t, string(k), key)
@@ -512,6 +648,37 @@ func TestContext_Loopback(t *testing.T) {
 	}
 
 	ctx.Loopback(key, value)
+	test.AssertTrue(t, cnt == 1)
+}
+
+func TestContext_LoopbackWithHeaders(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		key   = "key"
+		value = "value"
+		cnt   = 0
+		headers = map[string][]byte{"Header": []byte("value")}
+	)
+
+	graph := DefineGroup("group", Persist(c), Loop(c, cb))
+	ctx := &cbContext{
+		graph:            graph,
+		msg:              &sarama.ConsumerMessage{},
+		trackOutputStats: func(ctx context.Context, topic string, size int) {},
+		emitter: func(tp string, k string, v []byte, h map[string][]byte) *Promise {
+			cnt++
+			test.AssertEqual(t, tp, graph.LoopStream().Topic())
+			test.AssertEqual(t, string(k), key)
+			test.AssertEqual(t, string(v), value)
+			test.AssertEqual(t, h, headers)
+			return NewPromise()
+		},
+	}
+
+	ctx.LoopbackWithHeaders(key, value, headers)
 	test.AssertTrue(t, cnt == 1)
 }
 

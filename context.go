@@ -11,7 +11,7 @@ import (
 	"github.com/lovoo/goka/multierr"
 )
 
-type emitter func(topic string, key string, value []byte) *Promise
+type emitter func(topic string, key string, value []byte, headers map[string][]byte) *Promise
 
 // Context provides access to the processor's table and emit capabilities to
 // arbitrary topics in kafka.
@@ -73,6 +73,15 @@ type Context interface {
 	// the processor might deadlock.
 	SetValue(value interface{})
 
+	// SetValue updates the value of the key in the group table with given headers.
+	// It stores the value in the local cache and sends the
+	// update to the Kafka topic representing the group table.
+	//
+	// This method might panic to initiate an immediate shutdown of the processor
+	// to maintain data integrity. Do not recover from that panic or
+	// the processor might deadlock.
+	SetValueWithHeaders(value interface{}, headers map[string][]byte)
+
 	// Delete deletes a value from the group table. IMPORTANT: this deletes the
 	// value associated with the key from both the local cache and the persisted
 	// table in Kafka.
@@ -81,6 +90,15 @@ type Context interface {
 	// to maintain data integrity. Do not recover from that panic or
 	// the processor might deadlock.
 	Delete()
+
+	// DeleteWithHeadera deletes a value from the group table with given headers.
+	// IMPORTANT: this deletes the value associated with the key from both the
+	// local cache and the persisted table in Kafka.
+	//
+	// This method might panic to initiate an immediate shutdown of the processor
+	// to maintain data integrity. Do not recover from that panic or
+	// the processor might deadlock.
+	DeleteWithHeaders(map[string][]byte)
 
 	// Timestamp returns the timestamp of the input message. If the timestamp is
 	// invalid, a zero time will be returned.
@@ -107,6 +125,13 @@ type Context interface {
 	// the processor might deadlock.
 	Emit(topic Stream, key string, value interface{})
 
+	// Emit asynchronously writes a message into a topic with given header.
+	//
+	// This method might panic to initiate an immediate shutdown of the processor
+	// to maintain data integrity. Do not recover from that panic or
+	// the processor might deadlock.
+	EmitWithHeaders(topic Stream, key string, value interface{}, headers map[string][]byte)
+
 	// Loopback asynchronously sends a message to another key of the group
 	// table. Value passed to loopback is encoded via the codec given in the
 	// Loop subscription.
@@ -115,6 +140,15 @@ type Context interface {
 	// to maintain data integrity. Do not recover from that panic or
 	// the processor might deadlock.
 	Loopback(key string, value interface{})
+
+	// LoopbackWithHeaders asynchronously sends a message to another key of the
+	// group table with given headers. Value passed to loopback is encoded via
+	// the codec given in the Loop subscription.
+	//
+	// This method might panic to initiate an immediate shutdown of the processor
+	// to maintain data integrity. Do not recover from that panic or
+	// the processor might deadlock.
+	LoopbackWithHeaders(key string, value interface{}, headers map[string][]byte)
 
 	// Fail stops execution and shuts down the processor
 	// The callback is stopped immediately by panicking. Do not recover from that panic or
@@ -172,6 +206,11 @@ type cbContext struct {
 
 // Emit sends a message asynchronously to a topic.
 func (ctx *cbContext) Emit(topic Stream, key string, value interface{}) {
+	ctx.EmitWithHeaders(topic, key, value, nil)
+}
+
+// EmitWithHeaders sends a message asynchronously to a topic with given headers.
+func (ctx *cbContext) EmitWithHeaders(topic Stream, key string, value interface{}, headers map[string][]byte) {
 	if topic == "" {
 		ctx.Fail(errors.New("cannot emit to empty topic"))
 	}
@@ -199,11 +238,15 @@ func (ctx *cbContext) Emit(topic Stream, key string, value interface{}) {
 		}
 	}
 
-	ctx.emit(string(topic), key, data)
+	ctx.emit(string(topic), key, data, headers)
 }
-
 // Loopback sends a message to another key of the processor.
 func (ctx *cbContext) Loopback(key string, value interface{}) {
+	ctx.LoopbackWithHeaders(key, value, nil)
+}
+
+// LoopbackWithHeaders sends a message to another key of the processor with given headers.
+func (ctx *cbContext) LoopbackWithHeaders(key string, value interface{}, headers map[string][]byte) {
 	l := ctx.graph.LoopStream()
 	if l == nil {
 		ctx.Fail(errors.New("no loop topic configured"))
@@ -214,12 +257,12 @@ func (ctx *cbContext) Loopback(key string, value interface{}) {
 		ctx.Fail(fmt.Errorf("error encoding message for key %s: %v", key, err))
 	}
 
-	ctx.emit(l.Topic(), key, data)
+	ctx.emit(l.Topic(), key, data, headers)
 }
 
-func (ctx *cbContext) emit(topic string, key string, value []byte) {
+func (ctx *cbContext) emit(topic string, key string, value []byte, headers map[string][]byte) {
 	ctx.counters.emits++
-	ctx.emitter(topic, key, value).Then(func(err error) {
+	ctx.emitter(topic, key, value, headers).Then(func(err error) {
 		if err != nil {
 			err = fmt.Errorf("error emitting to %s: %v", topic, err)
 		}
@@ -229,7 +272,10 @@ func (ctx *cbContext) emit(topic string, key string, value []byte) {
 }
 
 func (ctx *cbContext) Delete() {
-	if err := ctx.deleteKey(ctx.Key()); err != nil {
+	ctx.DeleteWithHeaders(nil)
+}
+func (ctx *cbContext) DeleteWithHeaders(headers map[string][]byte) {
+	if err := ctx.deleteKey(ctx.Key(), headers); err != nil {
 		ctx.Fail(err)
 	}
 }
@@ -245,7 +291,12 @@ func (ctx *cbContext) Value() interface{} {
 
 // SetValue updates the value of the key in the group table.
 func (ctx *cbContext) SetValue(value interface{}) {
-	if err := ctx.setValueForKey(ctx.Key(), value); err != nil {
+	ctx.SetValueWithHeaders(value, nil)
+}
+
+// SetValueWithHeaders updates the value of the key in the group table with given headers.
+func (ctx *cbContext) SetValueWithHeaders(value interface{}, headers map[string][]byte) {
+	if err := ctx.setValueForKey(ctx.Key(), value, headers); err != nil {
 		ctx.Fail(err)
 	}
 }
@@ -343,7 +394,7 @@ func (ctx *cbContext) valueForKey(key string) (interface{}, error) {
 	return value, nil
 }
 
-func (ctx *cbContext) deleteKey(key string) error {
+func (ctx *cbContext) deleteKey(key string, headers map[string][]byte) error {
 	if ctx.graph.GroupTable() == nil {
 		return fmt.Errorf("Cannot access state in stateless processor")
 	}
@@ -354,7 +405,7 @@ func (ctx *cbContext) deleteKey(key string) error {
 	}
 
 	ctx.counters.emits++
-	ctx.emitter(ctx.graph.GroupTable().Topic(), key, nil).Then(func(err error) {
+	ctx.emitter(ctx.graph.GroupTable().Topic(), key, nil, headers).Then(func(err error) {
 		ctx.emitDone(err)
 	})
 
@@ -362,7 +413,7 @@ func (ctx *cbContext) deleteKey(key string) error {
 }
 
 // setValueForKey sets a value for a key in the processor state.
-func (ctx *cbContext) setValueForKey(key string, value interface{}) error {
+func (ctx *cbContext) setValueForKey(key string, value interface{}, headers map[string][]byte) error {
 	if ctx.graph.GroupTable() == nil {
 		return fmt.Errorf("Cannot access state in stateless processor")
 	}
@@ -383,7 +434,7 @@ func (ctx *cbContext) setValueForKey(key string, value interface{}) error {
 
 	table := ctx.graph.GroupTable().Topic()
 	ctx.counters.emits++
-	ctx.emitter(table, key, encodedValue).ThenWithMessage(func(msg *sarama.ProducerMessage, err error) {
+	ctx.emitter(table, key, encodedValue, headers).ThenWithMessage(func(msg *sarama.ProducerMessage, err error) {
 		if err == nil && msg != nil {
 			err = ctx.table.storeNewestOffset(msg.Offset)
 		}
