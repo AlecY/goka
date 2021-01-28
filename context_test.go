@@ -12,9 +12,9 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/golang/mock/gomock"
 
-	"github.com/lovoo/goka/codec"
-	"github.com/lovoo/goka/internal/test"
-	"github.com/lovoo/goka/logger"
+	"github.com/AlecY/goka/codec"
+	"github.com/AlecY/goka/internal/test"
+	"github.com/AlecY/goka/logger"
 )
 
 func newEmitter(err error, done func(err error)) emitter {

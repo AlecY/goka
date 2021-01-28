@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/codec"
-	"github.com/lovoo/goka/examples/3-messaging/translator"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/codec"
+	"github.com/AlecY/goka/examples/3-messaging/translator"
 )
 
 var (

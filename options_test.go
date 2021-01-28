@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/lovoo/goka/internal/test"
-	"github.com/lovoo/goka/storage"
+	"github.com/AlecY/goka/internal/test"
+	"github.com/AlecY/goka/storage"
 )
 
 func nullStorageBuilder() storage.Builder {

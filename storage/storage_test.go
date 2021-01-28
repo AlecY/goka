@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/internal/test"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 

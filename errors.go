@@ -18,15 +18,15 @@ var (
 var (
 	// this regex matches the package name + some hash info, if we're in gomod but not subpackages
 	// examples which match
-	// * github.com/lovoo/goka/processor.go
-	// * github.com/lovoo/goka@v1.0.0/view.go
+	// * github.com/AlecY/goka/processor.go
+	// * github.com/AlecY/goka@v1.0.0/view.go
 	// * github.com/some-fork/goka/view.go
 	// examples which do not match
 	// * github.com/something/else
-	// * github.com/lovoo/goka/subpackage/file.go
+	// * github.com/AlecY/goka/subpackage/file.go
 	// this regex is used to filter out entries from the stack trace that origin
 	// from the root-package of go (but not the subpackages, otherwise we would not see the stack in the example-tests)
-	// reflect.TypeOf(Processor{}).PkgPath() returns (in the main repo) "github.com/lovoo/goka"
+	// reflect.TypeOf(Processor{}).PkgPath() returns (in the main repo) "github.com/AlecY/goka"
 	gokaPackageRegex = regexp.MustCompile(fmt.Sprintf(`%s(?:@[^/]+)?/[^/]+$`, reflect.TypeOf(Processor{}).PkgPath()))
 )
 

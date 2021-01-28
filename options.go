@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka/logger"
-	"github.com/lovoo/goka/storage"
+	"github.com/AlecY/goka/logger"
+	"github.com/AlecY/goka/storage"
 )
 
 // UpdateCallback is invoked upon arrival of a message for a table partition.

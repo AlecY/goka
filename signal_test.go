@@ -3,7 +3,7 @@ package goka
 import (
 	"testing"
 
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/internal/test"
 )
 
 func TestSignal_SetState(t *testing.T) {

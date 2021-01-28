@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lovoo/goka/codec"
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/codec"
+	"github.com/AlecY/goka/internal/test"
 )
 
 var (

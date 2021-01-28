@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/codec"
-	"github.com/lovoo/goka/internal/test"
-	"github.com/lovoo/goka/tester"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/codec"
+	"github.com/AlecY/goka/internal/test"
+	"github.com/AlecY/goka/tester"
 )
 
 // Scenario (1)

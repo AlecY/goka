@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/codec"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/codec"
 )
 
 func main() {

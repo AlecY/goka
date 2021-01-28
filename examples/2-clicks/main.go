@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/codec"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/codec"
 )
 
 var (

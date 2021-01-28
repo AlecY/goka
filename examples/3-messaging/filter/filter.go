@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/lovoo/goka"
-	messaging "github.com/lovoo/goka/examples/3-messaging"
-	"github.com/lovoo/goka/examples/3-messaging/blocker"
-	"github.com/lovoo/goka/examples/3-messaging/translator"
+	"github.com/AlecY/goka"
+	messaging "github.com/AlecY/goka/examples/3-messaging"
+	"github.com/AlecY/goka/examples/3-messaging/blocker"
+	"github.com/AlecY/goka/examples/3-messaging/translator"
 )
 
 var (

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka/multierr"
+	"github.com/AlecY/goka/multierr"
 )
 
 // TopicManager provides an interface to create/check topics and their partitions

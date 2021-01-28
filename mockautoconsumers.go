@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka/multierr"
+	"github.com/AlecY/goka/multierr"
 )
 
 const (

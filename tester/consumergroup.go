@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/multierr"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/multierr"
 )
 
 // consumerGroup mocks the consumergroup

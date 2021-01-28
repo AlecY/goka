@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lovoo/goka"
-	"github.com/lovoo/goka/logger"
-	"github.com/lovoo/goka/web/templates"
+	"github.com/AlecY/goka"
+	"github.com/AlecY/goka/logger"
+	"github.com/AlecY/goka/web/templates"
 
 	"net/http"
 

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/lovoo/goka/codec"
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/codec"
+	"github.com/AlecY/goka/internal/test"
 )
 
 var (

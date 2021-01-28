@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/internal/test"
 )
 
 func TestErrGroup_Go(t *testing.T) {

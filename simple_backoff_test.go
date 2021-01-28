@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/internal/test"
 )
 
 func TestSimpleBackoff(t *testing.T) {

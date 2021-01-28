@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka/internal/test"
+	"github.com/AlecY/goka/internal/test"
 )
 
 func TestCopartitioningStrategy(t *testing.T) {

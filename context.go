@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/lovoo/goka/multierr"
+	"github.com/AlecY/goka/multierr"
 )
 
 type emitter func(topic string, key string, value []byte, headers map[string][]byte) *Promise

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/lovoo/goka"
-	storage "github.com/lovoo/goka/storage/redis"
+	"github.com/AlecY/goka"
+	storage "github.com/AlecY/goka/storage/redis"
 
 	redis "gopkg.in/redis.v5"
 )
